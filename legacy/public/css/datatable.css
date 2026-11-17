@@ -1,0 +1,22 @@
+/* datatable.css - look of the searchable tables (js/datatable.js) */
+.dt-bar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.dt-bar { gap: 8px 16px; }
+.dt-info { color: var(--mut); margin-left: auto; font-size: 13px; }
+.dt-pager { display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0; }
+.dt-pager button.cur { background: var(--navy); border-color: var(--ac); }
+table.dt th[data-dir]::after { content: attr(data-dir); margin-left: 6px; color: var(--ac); font-size: 10px; }
+table.dt .dt-filters th { padding: 3px 6px; }
+table.dt .dt-filters input { width: 100%; min-width: 50px; margin: 0; padding: 4px 6px; font-size: 12px; text-transform: none; letter-spacing: 0; }
+table.dt tr.arch td { opacity: .55; }
+
+table.dt td:last-child { white-space: nowrap; }
+table.dt td button { padding: 4px 10px; margin: 0 2px; }
+
+table.dt tfoot td { border-top: 2px solid var(--bd); }
+table.dt th { white-space: nowrap; user-select: none; }
+table.dt th:hover { color: var(--tx); }
+table.dt td .pnm a { white-space: nowrap; }
+table.roster.dt td:last-child { white-space: nowrap; }
+
+/* text that is searchable by the column filter but not shown (e.g. "no picture" under the Photo column) */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

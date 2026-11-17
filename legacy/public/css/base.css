@@ -1,0 +1,180 @@
+/* base.css - theme colors, page layout, cards, tables, buttons, forms */
+
+:root {                      /* change the theme here - colors come from the BCBL logo */
+  --bg: #050a1c;             /* page background (very dark navy) */
+  --card: #0a1530;           /* cards and panels */
+  --bd: #1a2d6b;             /* borders */
+  --tx: #eef2fb;             /* text */
+  --mut: #8c9bc4;            /* muted text */
+  --ac: #f2a501;             /* accent: logo gold */
+  --navy: #01247c;           /* logo navy */
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 15px/1.45 Inter, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--tx);
+}
+
+a { color: #f2a501; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Top menu */
+header {
+  background: #040918;
+  border-bottom: 2px solid var(--ac);
+  padding: 6px 10px;
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+header a { color: var(--tx); padding: 6px 12px; border-radius: 8px; text-transform: capitalize; }
+header a:hover { background: #10245f; text-decoration: none; }
+
+main { max-width: none; width: 100%; margin: 0; padding: 8px 10px; }   /* uses the whole window (maximized / full screen) */
+.bc { font-size: 13px; margin: 2px 0 8px; color: var(--mut); }   /* breadcrumbs */
+h2, h3 { margin: 0.6em 0 0.4em; font-weight: 700; }
+h2 { font-size: 22px; } h3 { font-size: 17px; }
+
+/* Cards and grids */
+.card {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.two  { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 800px) { .two { grid-template-columns: 1fr; } }
+
+/* Tables */
+table { border-collapse: collapse; width: 100%; }
+td, th { border-bottom: 1px solid var(--bd); padding: 7px 9px; text-align: left; }
+th { color: var(--mut); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; background: #16224d; }
+tbody tr:nth-child(even) td { background: #0d1838; }
+small, .hint { color: var(--mut); }
+
+/* Buttons and form fields */
+/* One look for every button and field on every user page (Material 3, compact): tonal blue buttons with a state layer (css/m3.css),
+   outlined dark fields, 38px high controls. Class rules (.b, .ctl button, .shl button, ...) refine this for special buttons. */
+button, select, input {
+  font: inherit;
+  color: var(--tx);
+  margin: 2px;
+  border-radius: 10px;
+}
+button {
+  min-height: 38px; padding: 0 14px; border: 0; background: #2a3f87; color: #fff; font-weight: 700; cursor: pointer;
+}
+select, input { min-height: 38px; padding: 6px 10px; border: 1px solid #3a4a8f; border-radius: 8px; background: #0f1a44; }
+input[type=checkbox], input[type=radio] { min-height: 0; width: 18px; height: 18px; padding: 0; accent-color: #4f7bff; vertical-align: -3px; }
+input[type=color] { padding: 2px; min-width: 44px; cursor: pointer; }
+input::placeholder { color: #94a5d4; }
+.go   { background: #16a34a !important; }   /* green: Play / Start */
+.stop { background: #dc2626 !important; }   /* red: Pause / Stop */
+
+/* Photo placeholder (initials) and the small black clock line on /controls */
+.ph {
+  background: #1a3690; color: #fff; border-radius: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.mini {
+  background: #05070b; color: #f87171; font: 700 20px monospace; text-align: center;
+  padding: 10px; border-radius: 12px; border: 1px solid var(--bd);
+}
+
+/* Status colors used in roster tables */
+.on   { color: #4ade80; }
+.off  { color: var(--mut); }
+.warn { color: #f87171; }
+
+/* Pages that hide the top menu: /scoreboard (sbp) and /games/:id/statistics (view) */
+body.sbp { background: #000; }
+body.view { background: var(--bg); }
+body.sbp header, body.view header, body.sbp footer, body.view footer { display: none; }
+
+/* Scoreboard page: no page padding (see scoreboard.css) */
+
+/* ---------- Branding ---------- */
+.brand { display: flex; align-items: center; gap: 10px; margin-right: 14px; color: var(--tx); text-transform: none !important; }
+.brand img { height: 42px; width: 42px; }
+.brand span { display: flex; flex-direction: column; line-height: 1.15; }
+.brand b { font-size: 18px; letter-spacing: .08em; color: var(--ac); }
+.brand small { font-size: 11px; max-width: 260px; }
+header a.active { background: var(--navy); }
+footer { text-align: center; color: var(--mut); font-size: 12px; padding: 18px 10px 26px; }
+.brandbar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }   /* logo + league name on the statistics page */
+.brandbar img { height: 58px; width: 58px; }
+
+/* Dashboard */
+.hero { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; border-color: #1a3380;
+  background: linear-gradient(135deg, #01247c66, var(--card) 65%); }
+.hero img { width: 130px; height: 130px; filter: drop-shadow(0 0 16px #f2a50133); }
+.hero h1 { margin: 0 0 4px; font-size: 26px; }
+.hero p { margin: 0; color: var(--mut); }
+.stats { display: flex; gap: 26px; margin-top: 12px; flex-wrap: wrap; }
+.stats b { display: block; font-size: 26px; color: var(--ac); line-height: 1.1; }
+.stats small { text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
+.tile { border-top: 1px solid var(--bd); }
+.tile:hover { border-color: #3a4a8f; background: #0d1a3a; }
+.tile .ic { font-size: 26px; display: block; margin-bottom: 4px; }
+
+/* ---------- Round number label in the team color (substitution window, pickers, starting players) ---------- */
+.num {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 2.3em; height: 2.3em; padding: 0 .4em; border-radius: 999px;
+  font-weight: 700; font-size: 15px; line-height: 1; flex: none;
+}
+
+/* Date and time at the far right of the top menu */
+.sysclock { margin-left: auto; color: var(--mut); font-size: 13px; white-space: nowrap; }
+
+/* Delete buttons */
+button.danger { background: #7f1d1d; color: #fff; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Roster tables (scoresheet): every row the same height, player name always on ONE line.
+   The name column gets all the space that is left and always shows at least 16 characters (the table scrolls sideways before it cuts the name). */
+table.roster { table-layout: fixed; min-width: 560px; }
+table.roster th, table.roster td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; height: 34px; }
+table.roster th { font-size: 11px; letter-spacing: 0; padding: 0 4px; }
+table.roster th:nth-child(1) { width: 92px; }                  /* status */
+table.roster th:nth-child(2) { width: 44px; }                  /* number */
+table.roster th:nth-child(3) { min-width: 17ch; }              /* player */
+table.roster th:nth-child(n+4) { width: 42px; text-align: center; }   /* PTS ... PF */
+table.roster td:nth-child(n+4) { text-align: center; }
+.pnm { white-space: nowrap; }                                  /* a player name is never wrapped */
+
+/* ---------- "Others" drop-down in the top menu ---------- */
+.dd { position: relative; }
+.ddm { display: none; position: absolute; left: 0; top: 100%; min-width: 210px; z-index: 20; padding: 4px;
+  background: #040918; border: 1px solid var(--bd); border-radius: 10px; box-shadow: 0 8px 24px #000a; }
+.dd:hover .ddm, .dd.open .ddm { display: block; }
+.ddm a { display: block; white-space: nowrap; text-transform: none; }
+
+/* ---------- Short screens (landscape phone): a slim top menu so the controls fit ---------- */
+@media (max-height: 520px) {
+  header { padding: 2px 8px; gap: 2px; }
+  header a { padding: 4px 8px; font-size: 14px; }
+  .brand img { height: 28px; width: 28px; }
+  .brand small, .sysclock { display: none; }
+  .brand { margin-right: 6px; }
+  .brand b { font-size: 15px; }
+  main { padding: 4px 6px; }
+  footer { display: none; }
+}
+.evclk { width: 84px; text-align: center; margin: 0; padding: 4px 6px; }
+
+/* Team category tag */
+.cat { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 8px; border-radius: 999px; background: #1f2a4d; color: #c7d2fe; }
+.cat-Senior { background: #1e3a8a; color: #dbeafe; }
+.cat-Junior { background: #14532d; color: #dcfce7; }
+.cat-Free { background: #3f3f46; color: #e4e4e7; }

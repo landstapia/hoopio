@@ -1,0 +1,91 @@
+/* modal.css - the popup where you type a jersey number and pick a player */
+
+.md {                                   /* dark overlay */
+  position: fixed; inset: 0; background: #000a; z-index: 9; padding: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.bx {                                   /* the popup box */
+  position: relative;
+  background: #11204f;
+  border: 1px solid #2f4690;
+  padding: 18px;
+  border-radius: 22px;                  /* same dialog shape everywhere */
+  box-shadow: 0 12px 32px #000c;
+  width: min(680px, 100%);
+  max-height: 92vh;
+  overflow: auto;                       /* only scrolls if the list really does not fit */
+}
+.bx h3 { margin: 0 40px 10px 0; font-size: 16px; }
+.bx input { width: 100%; }
+
+.x {                                    /* close button, upper right */
+  position: absolute; top: 10px; right: 10px;
+  width: 34px; height: 34px; padding: 0; border-radius: 50%; background: #7f1d1d;
+}
+
+.pg { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px; margin-top: 8px; }
+.pb { display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; margin: 0; }   /* one player */
+.tg { color: #fff; font-size: 12px; padding: 0 8px; border-radius: 6px; font-weight: 700; }                /* team tag on the right */
+
+/* ---------- Big windows: substitution, starting players, breaks ---------- */
+.bx.wide { width: min(1500px, 100%); }
+.ptitle { margin: 0 40px 10px 0; font-size: 18px; }
+.ptitle small { display: block; font-size: 12px; font-weight: 400; color: var(--mut); }
+.pb .who { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.pb .pn, .pk .pn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 16ch; }   /* a player name always shows at least 16 characters */
+.pl1 { display: flex; flex-direction: column; gap: 6px; }                                   /* one column of players */
+.pl2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+.pk { display: flex; align-items: center; gap: 10px; margin: 0; width: 100%; text-align: left; border: 2px solid var(--bd); }
+.pk .pn { flex: 1; }
+.pk.sel { border-color: var(--ac); background: #1a3690; }
+.lcol { background: #071233; border: 1px solid var(--bd); border-radius: 12px; padding: 10px; }
+.pfoot { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bd); }
+.pfoot .clr { border-width: 2px; }
+.bx .pfoot button { width: auto; }
+.bx .row button { width: auto; display: inline-block; }
+
+/* Substitution window: one block per team side by side, each with ON COURT | BENCH columns */
+.subteams { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.subteam { background: #071233; border: 1px solid var(--bd); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.subteam h3 { margin: 2px 0 6px; font-size: 16px; }
+.subcols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.subcols > div { min-width: 0; }
+@media (max-width: 1100px) { .subteams { grid-template-columns: 1fr; } }
+
+/* ---------- Player picker (points / fouls / stats): one column per team, bench optional ---------- */
+.bx.mid { width: min(1000px, 100%); }
+.prow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.prow #pn { flex: 1 1 260px; width: auto; }
+.bx .pbench { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--tx); }
+.bx .pbench input { width: 20px; height: 20px; padding: 0; margin: 0; }
+.pcols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.pcol { background: #071233; border: 1px solid var(--bd); border-radius: 12px; padding: 6px 8px 8px; min-width: 0; }
+.pcol h4 { margin: 2px 0 6px; font-size: 15px; }
+.pcol .pb { width: 100%; }
+.pb .stt { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #e1e8ff; white-space: nowrap; }
+.pb.act .stt { color: #4ade80; }
+.pb.benchp { opacity: .85; border-style: dashed; }
+.pnote { margin-top: 8px; grid-column: 1 / -1; }
+@media (max-width: 560px) { .pcols { grid-template-columns: 1fr; } }
+
+/* ---------- Substitution (like "select the starting players"): green tick = on court, gray = bench ---------- */
+.pk.sb .stt { margin-left: auto; font-size: 11px; font-weight: 800; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: #1f2a4d; color: #8c9bc4; white-space: nowrap; }
+.pk.sb.sel-on { border-color: #16a34a; background: #0b3b24; }
+.pk.sb.sel-on .stt { background: #15803d; color: #fff; }
+.pk.sb.benchp { color: #8c9bc4; background: #0c1738; }
+.pk.sb.benchp .num { filter: grayscale(.6) brightness(.9); }
+.pk.sb.chg { box-shadow: 0 0 0 2px var(--ac); }
+.pk.sb.benchp.chg .stt { background: #7f1d1d; color: #fecaca; }
+.pk.sb.sel-on.chg .stt { background: #22c55e; color: #052e16; }
+.pk.sb:disabled { opacity: .4; }
+.lclear { margin-top: 8px; }
+#sw { margin-right: auto; align-self: center; color: #fbbf24; }
+#sn { margin-bottom: 8px; }
+
+/* short screens: tighter popups */
+@media (max-height: 520px) {
+  .bx { padding: 10px; max-height: 96vh; }
+  .pk { padding: 4px 8px; }
+  .pb { padding: 4px 8px; }
+  .num { font-size: 13px; }
+}

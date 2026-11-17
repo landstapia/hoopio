@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BCBL Scoreboard</title>
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <meta name="theme-color" content="#040918">
+
+  <!-- Styles: one file per area. Edit the one that matches what you want to change. -->
+  <link rel="stylesheet" href="/css/base.css">        <!-- colors, layout, tables, buttons -->
+  <link rel="stylesheet" href="/css/scoreboard.css">  <!-- the big /scoreboard display -->
+  <link rel="stylesheet" href="/css/playerboard.css"> <!-- the /playerboard display (rosters, fouls, points) -->
+  <link rel="stylesheet" href="/css/scoresheet.css">  <!-- /scoresheet summary strip and button panels -->
+  <link rel="stylesheet" href="/css/controls.css">    <!-- /controls and /custom-controls operator panels -->
+  <link rel="stylesheet" href="/css/events.css">      <!-- compact event log (game page) -->
+  <link rel="stylesheet" href="/css/datatable.css">
+  <link rel="stylesheet" href="/css/m3.css">          <!-- Material 3 touches: press feedback, dark dropdowns, hamburger menu -->   <!-- searchable / sortable tables -->
+  <link rel="stylesheet" href="/css/modal.css">       <!-- the "type a player number" popup -->
+  <link rel="stylesheet" href="/css/fields.css">      <!-- outlined fields with an always-visible label (fi / fs / fx) -->
+  <link rel="stylesheet" href="/css/teamstats.css">   <!-- team statistics block and the large players table on /teams/:id -->
+</head>
+<body>
+  <header id="nav"></header>   <!-- top menu, filled in by js/router.js -->
+  <main id="app"></main>       <!-- current page, filled in by js/router.js -->
+  <footer id="foot"></footer>  <!-- league name, filled in by js/router.js -->
+
+  <!-- Scripts: order matters (each file uses the ones above it). -->
+  <script src="/jquery.min.js"></script>
+  <script src="/js/brand.js"></script>        <!-- league name, tagline, logo (edit this to rebrand) -->
+  <script src="/js/state.js"></script>        <!-- data, server calls, lookups, formatting -->
+  <script src="/js/stats.js"></script>        <!-- scores, fouls, player/team statistics -->
+  <script src="/js/ui.js"></script>           <!-- HTML helpers: tables, images, popup -->
+  <script src="/js/datatable.js"></script>     <!-- search / sort / filter / paging for tables (DataTables-style) -->
+  <script src="/js/segment.js"></script>      <!-- 7-segment digit drawing -->
+  <script src="/js/buzzer.js"></script>       <!-- buzzer sound + hold-to-sound button -->
+  <script src="/js/components.js"></script>   <!-- shared widgets: scoreboard, summary strip, roster -->
+  <script src="/js/actions.js"></script>      <!-- everything a button does -->
+  <script src="/js/feedback.js"></script>      <!-- button press ripple -->
+  <script src="/js/ctl.js"></script>          <!-- operator panel shared by /controls and /custom-controls -->
+  <script src="/js/export.js"></script>       <!-- CSV export + printable team profile -->
+  <script src="/js/pages/dashboard.js"></script>
+  <script src="/js/pages/scoreboard.js"></script>
+  <script src="/js/pages/playerboard.js"></script>
+  <script src="/js/pages/scoresheet.js"></script>
+  <script src="/js/pages/controls.js"></script>
+  <script src="/js/pages/games.js"></script>
+  <script src="/js/pages/teams.js"></script>
+  <script src="/js/pages/players.js"></script>
+  <script src="/js/pages/log.js"></script>
+  <script src="/js/pages/custom.js"></script>   <!-- Others: custom scoreboard + custom controls -->
+  <script src="/js/pages/rules.js"></script>    <!-- Others: FIBA rules manual -->
+  <script src="/js/router.js"></script>       <!-- decides which page to show; starts the app -->
+</body>
+</html>

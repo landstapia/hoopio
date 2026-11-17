@@ -1,0 +1,53 @@
+/* fields.css - outlined fields whose label is ALWAYS visible (helpers fi / fs / fx in js/ui.js).
+   While the box is empty the label rests inside it; with text, a chosen value or focus it moves onto the top border (smaller), so you can
+   always tell what a field is for. Drop-downs, dates, times, colors and files always show something, so their label always sits on the border. */
+
+label.fl { position: relative; display: inline-block; vertical-align: top; width: 190px; max-width: 100%; margin: 10px 10px 6px 0; }
+label.fl.xs { width: 124px; } label.fl.s { width: 140px; } label.fl.m { width: 190px; } label.fl.l { width: 260px; } label.fl.xl { width: 340px; }
+
+label.fl > input, label.fl > select {
+  display: block; width: 100%; height: 44px; min-height: 44px; margin: 0; padding: 13px 12px 3px;
+  border: 1px solid #3a4a8f; border-radius: 8px; background: #0f1a44; color: var(--tx); font-size: 15px;
+}
+label.fl > select { padding-right: 30px; text-overflow: ellipsis; }
+label.fl > input[type=color] { padding: 7px 8px 2px; min-width: 0; cursor: pointer; }
+label.fl > input[type=file] { padding: 12px 10px 0; font-size: 13px; }
+label.fl > input[type=date], label.fl > input[type=time] { padding-top: 14px; }
+
+/* the label */
+label.fl > span {
+  position: absolute; left: 9px; top: 22px; transform: translateY(-50%); max-width: calc(100% - 18px); padding: 0 4px; border-radius: 4px;
+  font-size: 15px; line-height: 1.1; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+  transition: top .12s ease, font-size .12s ease, color .12s ease;
+}
+/* ... moved onto the border: empty box with no focus = resting inside; everything else = on the border */
+label.fl:focus-within > span, label.fl > input:not(:placeholder-shown) + span, label.fl.on > span {
+  top: 0; font-size: 12px; font-weight: 600; color: #b4c0ea;
+  background: linear-gradient(to bottom, transparent 0 45%, #0f1a44 45% 100%);     /* cuts the border line behind the label */
+}
+label.fl:focus-within > span { color: #8ab4ff; }
+label.fl > input:focus, label.fl > select:focus { outline: 0; border-color: #8ab4ff; box-shadow: inset 0 0 0 1px #8ab4ff; }
+
+/* a button next to fields lines up with them */
+label.fl ~ button { margin-top: 10px; min-height: 44px; vertical-align: top; }
+label.fl ~ .fl-note { display: inline-block; margin-top: 22px; }
+
+/* compact places */
+.evtools label.fl, .evadd label.fl { margin: 8px 8px 4px 0; }
+.evtools label.fl.s { width: 150px; } .evtools label.fl.m { width: 180px; }
+.evadd { align-items: start; }
+.evadd label.fl { width: 100%; min-width: 0; margin: 4px 0 0; }
+.evadd label.fl > input, .evadd label.fl > select { height: 40px; min-height: 40px; padding: 12px 8px 2px; }
+.evadd label.fl > span { top: 20px; }
+.evadd label.fl:focus-within > span, .evadd label.fl > input:not(:placeholder-shown) + span, .evadd label.fl.on > span { top: 0; }
+.evadd button { margin-top: 4px; }
+.std-head label.fl { margin: 6px 0 0; width: 130px; }
+.std-head label.fl > select { margin: 0; }
+.dt-bar label.fl { margin: 6px 0; }
+.dt-bar label.fl > input { width: 100%; }
+.dfg label.fl { display: block; width: 100%; margin: 6px 0 0; }
+.dfg label.fl > input, .dfg label.fl > select { height: 48px; padding: 15px 12px 3px; font-size: 16px; }
+.dfg label.fl > span { top: 24px; }
+.dfg label.fl:focus-within > span, .dfg label.fl > input:not(:placeholder-shown) + span, .dfg label.fl.on > span { top: 0; }
+
+@media (max-width: 760px), (max-height: 520px) { .evtools label.fl.evx { display: none; } }

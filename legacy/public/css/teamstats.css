@@ -1,0 +1,48 @@
+/* teamstats.css - the "Team statistics" block of /teams/:id (big numbers, records highlighted) and the large players table */
+
+.tstat h4 { margin: 20px 0 8px; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--mut); }
+.ts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.ts-hero { display: grid; grid-template-columns: 2.2fr 1fr 1fr 1fr; gap: 12px; }
+
+.ts-tile { display: flex; flex-direction: column; justify-content: center; min-height: 104px; padding: 12px 18px; background: var(--card); border: 1px solid var(--bd); border-radius: 14px; }
+.ts-tile b { font-size: 46px; font-weight: 800; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--tx); }
+.ts-tile > span { margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--mut); }
+.ts-tile > small { margin-top: 4px; font-size: 13px; color: #b4c0ea; }
+.ts-tile small i { font-style: normal; color: var(--tx); font-weight: 600; }
+
+/* record: the biggest number on the page, team colored accent */
+.ts-tile.rec { border-left: 6px solid var(--tc); background: linear-gradient(120deg, #11204f, var(--card)); }
+.ts-tile.rec b { font-size: 88px; letter-spacing: -.03em; }
+.ts-tile.rec b .w { color: #4ade80; } .ts-tile.rec b .l { color: #fca5a5; } .ts-tile.rec b .d { color: var(--mut); font-weight: 400; margin: 0 .08em; }
+.ts-tile.hi b { color: var(--ac); }
+
+/* records / best-ever values */
+.ts-tile.star { border-color: var(--ac); background: linear-gradient(135deg, #241b00, var(--card)); }
+.ts-tile.star b { color: var(--ac); }
+.ts-tile.star > span:before { content: "★ "; }
+
+.ts-up { color: #4ade80 !important; } .ts-dn { color: #fca5a5 !important; }
+
+/* totals: a bit smaller than the headline numbers */
+.ts-tot .ts-tile b { font-size: 40px; }
+
+/* leaders */
+.ts-lead { min-height: 0; padding: 12px 18px; }
+.ts-lead b { font-size: 44px; color: var(--ac); }
+.ts-lead .who { margin-top: 6px; font-size: 16px; font-weight: 700; }
+.ts-lead .who small { display: inline; font-weight: 400; }
+
+@media (max-width: 800px) { .ts-hero { grid-template-columns: 1fr 1fr; } .ts-tile.rec { grid-column: 1 / 3; } .ts-tile.rec b { font-size: 68px; } }
+
+/* ---- the big players table (team page) ---- */
+table.dt.rt-big { font-size: 1.38em; }
+table.dt.rt-big th, table.dt.rt-big td { padding: 10px 16px; }
+table.dt.rt-big thead th { font-size: .6em; letter-spacing: .08em; text-transform: uppercase; color: #b4c0ea; }
+table.dt.rt-big td { white-space: nowrap; }
+table.dt.rt-big .pcell { display: inline-flex; align-items: center; gap: 16px; min-width: 340px; }
+table.dt.rt-big .pcell > span { white-space: normal; line-height: 1.2; }
+table.dt.rt-big .pcell .ph { border-radius: 10px; font-size: 18px; }
+table.dt.rt-big td small { font-size: .62em; color: var(--mut); }
+table.dt.rt-big td:nth-child(n+5) { font-weight: 800; font-variant-numeric: tabular-nums; }
+table.dt.rt-big td:nth-child(5) { color: var(--ac); }          /* PTS */
+table.dt.rt-big td:first-child { color: #b4c0ea; font-weight: 700; }

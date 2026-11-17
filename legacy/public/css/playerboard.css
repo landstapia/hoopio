@@ -1,0 +1,48 @@
+/* playerboard.css - the /playerboard display: both rosters with fouls and points, for a second monitor.
+   The page is drawn on a fixed 1600x900 stage that is scaled to fit any screen (see fit() in js/pages/playerboard.js).
+   Colors: team name colors come from the team; the rest is here. */
+
+.pbwrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; overflow: hidden;
+}
+/* navy / gold bars: same size and colors as /scoreboard, drawn on top so the stage never covers them */
+.pbwrap::before, .pbwrap::after { content: ""; position: fixed; left: 0; right: 0; height: .7vh; z-index: 5; pointer-events: none; }
+.pbwrap::before { top: 0; background: #01247c; }
+.pbwrap::after  { bottom: 0; background: #f2a501; }
+.pbwrap.idle { flex-direction: column; gap: 3vh; color: #fff; font: 700 8vh Arial, Helvetica, sans-serif; }
+.pbwrap.idle img { height: 34vh; width: 34vh; }
+
+.pbstage {
+  --rh: 40px; --amber: #f2a501; --pbred: #ff2d2d; --pbgreen: #1fb34a;
+  width: 1600px; height: 900px; flex: none; transform-origin: center;
+  display: grid; grid-template-columns: 1fr 1fr; column-gap: 120px; padding: 24px 50px;
+  background: #000; color: #e8e8ee; font-family: Arial, Helvetica, sans-serif;
+}
+.pbside { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+
+.pbhdr { display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 14px; max-width: 100%; }
+.pbhdr .t { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.pbalias { font-size: 80px; font-weight: 700; line-height: .8; text-transform: uppercase; white-space: nowrap; }
+.pbname  { font-size: 30px; margin-top: -8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 560px; }
+
+.pbroster { width: 100%; display: flex; flex-direction: column; gap: 3px; font-weight: 700; font-size: calc(var(--rh) * .65); }
+.pbhead, .pbrow { display: grid; align-items: center; height: var(--rh); }
+.pbleft  .pbhead, .pbleft  .pbrow { grid-template-columns: 70px 1fr 150px 70px; column-gap: 18px; }
+.pbright .pbhead, .pbright .pbrow { grid-template-columns: 70px 150px 1fr 70px; column-gap: 18px; }
+.pbhead { height: 28px; font-size: 16px; letter-spacing: 4px; color: #8a8a99; font-weight: 400; border-bottom: 1px solid #333; margin-bottom: 4px; }
+.pbrow { white-space: nowrap; }
+.pbrow .pbnm { overflow: hidden; text-overflow: ellipsis; }
+
+.pbleft .pbnum { text-align: right; }  .pbright .pbnm { text-align: right; }  .pbright .pbnum { text-align: left; }
+.pbright .pbpt, .pbright .pbhpt { text-align: left; }  .pbleft .pbpt, .pbleft .pbhpt { text-align: right; }
+.pbrow .pbpt { color: var(--amber); font-size: calc(var(--rh) * .75); }
+
+.pbdots { display: flex; gap: 8px; }
+.pbdots i { width: calc(var(--rh) * .55); height: calc(var(--rh) * .55); max-width: 22px; max-height: 22px; border-radius: 50%; border: 3px solid #cfcfd6; }
+.pbdots i.on  { background: var(--pbgreen); border-color: var(--pbgreen); }
+.pbdots i.out { background: var(--pbred);   border-color: var(--pbred); }
+.pbright .pbdots { flex-direction: row-reverse; }
+
+.pbempty { color: #8a8a99; font-weight: 400; font-size: 24px; margin-top: 30px; }
+
+/* team logo: plain round image, same look and placement as on /scoreboard */
+.pblogo { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; flex: none; }

@@ -1,0 +1,50 @@
+/* m3.css - Material Design 3 touches, kept compact: dark native controls, press feedback (state layer + ripple + slight press),
+   keyboard focus ring, text fields with a clear focus state, and the hamburger menu. Loaded after the other stylesheets. */
+
+:root { color-scheme: dark; -webkit-tap-highlight-color: transparent; }
+
+/* ---------- Dropdowns, date / time / color pickers: dark, never the light system style ---------- */
+select, input, textarea { color-scheme: dark; }
+select { background-color: #0f2160; color: var(--tx); }
+select option, select optgroup { background-color: #0b1740; color: #eef2fb; }
+input::placeholder { color: #94a5d4; }
+
+/* ---------- Press feedback on every button ---------- */
+button { position: relative; overflow: hidden; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  transition: background-color .15s, transform .08s, box-shadow .15s, filter .1s; }
+button::before { content: ''; position: absolute; inset: 0; background: currentColor; opacity: 0; transition: opacity .15s; pointer-events: none; border-radius: inherit; }
+button:hover::before { opacity: .09; }
+button:focus-visible::before { opacity: .14; }
+button:active::before { opacity: .22; }
+button:active:not(:disabled) { transform: scale(.965); }
+button:disabled::before { display: none; }
+button .ripple, .ripple { position: absolute; border-radius: 50%; background: currentColor; opacity: .3; transform: scale(0); pointer-events: none; animation: m3ripple .5s ease-out forwards; }
+@keyframes m3ripple { to { transform: scale(1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ripple { display: none; } button:active:not(:disabled) { transform: none; } button { transition: none; } }
+
+/* ---------- Keyboard / switch focus ring (high contrast) ---------- */
+:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid #8ab4ff; outline-offset: 0; border-color: #8ab4ff; }
+
+/* ---------- Hamburger menu (team cards, team page, players) ---------- */
+.hmenu { position: relative; display: inline-block; }
+.hbtn { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; min-height: 0; margin: 0; padding: 0; border-radius: 50%; border: 0; background: transparent; }
+.hbtn svg { width: 22px; height: 22px; fill: none; stroke: var(--tx); stroke-width: 2.2; stroke-linecap: round; }
+.hbtn:hover { background: #ffffff14; }
+.hlist { display: none; position: fixed; z-index: 60; min-width: 170px; padding: 6px 0; background: #11204f; border: 1px solid #2f4690; border-radius: 12px; box-shadow: 0 8px 24px #000b; }
+.hmenu.open .hlist { display: block; }
+.hlist button { display: block; width: 100%; margin: 0; padding: 0 16px; height: 44px; border: 0; border-radius: 0; background: transparent; color: var(--tx); text-align: left; font-size: 15px; }
+.hlist button.danger { color: #fca5a5; }
+.cardmenu { position: absolute; top: 6px; right: 6px; }
+.card.hasmenu { position: relative; }
+
+/* ---------- Contrast fixes ---------- */
+button small, button small *, .b small { color: inherit; }                  /* small captions inside buttons follow the button text color (not the muted gray) */
+.go   { background: #15803d !important; color: #fff; }                      /* Play / Start: white on this green is 5:1 */
+.ctl .bz, .b.bz, .cb.bz { background: #854d0e; }                            /* buzzer: brown with white text (6.6:1) */
+
+/* ---------- Keyboard shortcuts: the key shown on a button, and the highlighted player / team in the pickers ---------- */
+.sk { position: absolute; top: .28em; right: .4em; padding: .05em .45em; border: 1px solid #ffffffb0; border-radius: .3em; background: #00000042; color: inherit;
+  font: 700 max(10px, .36em)/1.3 system-ui, sans-serif; letter-spacing: 0; pointer-events: none; }
+.pcol .pb:focus, .pcol .pb:focus-visible { outline: 3px solid #8ab4ff; outline-offset: -3px; background: #2a3f87; }
+.kt:focus, .kt:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }

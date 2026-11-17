@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --bg: #050a1c;
+  --card: #0a1530;
+  --bd: #1a2d6b;
+  --tx: #eef2fb;
+  --mut: #8c9bc4;
+  --ac: #f2a501;
+  --navy: #01247c;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  background-color: var(--bg);
+  color: var(--tx);
+  -webkit-tap-highlight-color: transparent;
+}
+
+select,
+input,
+textarea {
+  color-scheme: dark;
+}
