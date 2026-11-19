@@ -1,8 +1,8 @@
-import { useDb } from '../../context/DbContext';
-import { ab, fc, nm, per, secText } from '../../lib/format';
-import { foulTag, staffLabel } from '../../lib/stats';
-import type { Game, GameEvent } from '../../types';
-import { ModalShell } from '../shared/ModalShell';
+import { useDb } from '../../../context/DbContext';
+import { ab, fc, nm, per, secText } from '../../../lib/format';
+import { foulTag, staffLabel } from '../../../lib/stats';
+import type { Game, GameEvent } from '../../../types';
+import { ModalShell } from '../../../shared/ModalShell';
 
 export function EventDeleteModal({
   game,
@@ -43,9 +43,13 @@ export function EventDeleteModal({
   };
 
   return (
-    <ModalShell maxWidth="max-w-[430px]" dismissable={false} onClose={onClose}>
-      <h3 className="text-xl font-bold text-[#eef2fb]">Delete this event?</h3>
-      <p className="mt-1 text-sm text-[#c7d2fe]">The score and statistics update at once.</p>
+    <ModalShell
+      maxWidth="max-w-[430px]"
+      dismissable={false}
+      title="Delete this event?"
+      subtitle="The score and statistics update at once."
+      onClose={onClose}
+    >
       <div className="my-4 rounded-xl border-l-4 border-[#f87171] bg-[#0a1530] px-3.5 py-2.5 font-bold text-white">
         {per(event.period)} · {fc(event.clock)} · {ab(team)}
         <small className="mt-0.5 block font-normal text-[#8c9bc4]">{what}</small>

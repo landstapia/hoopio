@@ -1,4 +1,15 @@
-import type { FullDbPayload, Game, Player, Team } from '../types';
+import type {
+  CustomState,
+  FullDbPayload,
+  Game,
+  GameEvent,
+  GameStatus,
+  LiveState,
+  PatchChange,
+  Player,
+  Team,
+  TeamCategory,
+} from '../types';
 import { ab, byNumber } from './format';
 import { KS, Z, sc, tf } from './stats';
 
@@ -7,6 +18,16 @@ const brandInfo = {
   fullName: 'HoopIO Basketball Management',
   logo: '', // Set to '/logo.png' if you place a logo file in client/public/
 };
+
+const VALID_CATEGORIES = new Set<TeamCategory>(['Senior', 'Junior', 'Free']);
+const VALID_STATUSES = new Set<GameStatus>(['scheduled', 'live', 'final']);
+
+export interface TransferProgress {
+  percent: number;
+  label: string;
+}
+
+export type ProgressCallback = (progress: TransferProgress) => void;
 
 // --- Time stamp utilities ---
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -57,9 +78,370 @@ export function downloadFile(name: string, content: string, mimeType: string, ex
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-// --- JSON Backup Export ---
-export function exportDatabaseBackup(db: FullDbPayload) {
-  downloadFile('hoopio-backup', JSON.stringify(db, null, 2), 'application/json;charset=utf-8', 'json');
+// --- Image Data URL Helpers ---
+async function urlToDataUrl(photo: string): Promise<string> {
+  if (!photo || photo.startsWith('data:image/')) return photo;
+  try {
+    const res = await fetch(photo);
+    if (!res.ok) return photo;
+    const blob = await res.blob();
+    if (!blob.type.startsWith('image/')) return photo;
+    return await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(typeof reader.result === 'string' ? reader.result : photo);
+      };
+      reader.onerror = () => resolve(photo);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return photo;
+  }
+}
+
+async function uploadDataUrlIfNeeded(
+  photo: string,
+  endpoint: '/api/upload/team-logos' | '/api/upload/solo-photos',
+  filenamePrefix: string,
+): Promise<string> {
+  if (!photo || !photo.startsWith('data:image/')) return photo;
+
+  const match = /^data:(image\/([a-zA-Z0-9+.-]+));base64,(.+)$/.exec(photo);
+  if (!match) return '';
+
+  const mime = match[1];
+  const rawExt = match[2].toLowerCase();
+  const ext = rawExt === 'jpeg' ? 'jpg' : rawExt === 'svg+xml' ? 'svg' : rawExt;
+
+  const byteChars = atob(match[3]);
+  const bytes = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) {
+    bytes[i] = byteChars.charCodeAt(i);
+  }
+
+  const formData = new FormData();
+  formData.append('photo', new Blob([bytes], { type: mime }), `${filenamePrefix}.${ext}`);
+
+  const res = await fetch(endpoint, { method: 'POST', body: formData });
+  if (!res.ok) return '';
+
+  const data = (await res.json()) as { url?: string; path?: string };
+  return data.url || data.path || '';
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+// --- Portable JSON Backup Export & Restore ---
+export async function exportDatabaseBackup(
+  db: FullDbPayload,
+  onProgress?: ProgressCallback,
+): Promise<void> {
+  const totalMedia = db.teams.length + db.players.length;
+  let processed = 0;
+
+  const report = (label: string) => {
+    if (!onProgress) return;
+    const pct = totalMedia > 0 ? Math.min(95, Math.round((processed / totalMedia) * 95)) : 50;
+    onProgress({ percent: pct, label });
+  };
+
+  report('Preparing backup…');
+
+  const teamsWithEmbeddedPhotos: Team[] = [];
+  for (const t of db.teams) {
+    report(`Encoding team logos (${processed + 1}/${totalMedia})…`);
+    const photo = await urlToDataUrl(t.photo);
+    teamsWithEmbeddedPhotos.push({ ...t, photo });
+    processed++;
+  }
+
+  const playersWithEmbeddedPhotos: Player[] = [];
+  for (const p of db.players) {
+    report(`Encoding player photos (${processed + 1}/${totalMedia})…`);
+    const photo = await urlToDataUrl(p.photo);
+    playersWithEmbeddedPhotos.push({ ...p, photo });
+    processed++;
+  }
+
+  onProgress?.({ percent: 98, label: 'Packaging JSON file…' });
+
+  const portablePayload: FullDbPayload = {
+    ...db,
+    teams: teamsWithEmbeddedPhotos,
+    players: playersWithEmbeddedPhotos,
+  };
+
+  downloadFile(
+    'hoopio-backup',
+    JSON.stringify(portablePayload, null, 2),
+    'application/json;charset=utf-8',
+    'json',
+  );
+
+  onProgress?.({ percent: 100, label: 'Backup downloaded' });
+}
+
+export function normalizeBackupPayload(raw: unknown): FullDbPayload {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('Invalid JSON file: expected an object at the root.');
+  }
+
+  const src = raw as Record<string, unknown>;
+  if (!Array.isArray(src.teams) || !Array.isArray(src.players) || !Array.isArray(src.games)) {
+    throw new Error('Invalid backup structure: missing teams, players, or games arrays.');
+  }
+
+  const teams: Team[] = src.teams.map((item, idx) => {
+    const t = (item ?? {}) as Record<string, unknown>;
+    const rawCat = String(t.category || 'Senior') as TeamCategory;
+    return {
+      id: Number(t.id ?? idx + 1),
+      name: String(t.name || `Team ${idx + 1}`),
+      abbr: String(t.abbr || String(t.name || 'TM').slice(0, 3)).toUpperCase().slice(0, 5),
+      alias: String(t.alias || ''),
+      color: String(t.color || '#3b82f6'),
+      photo: String(t.photo || ''),
+      category: VALID_CATEGORIES.has(rawCat) ? rawCat : 'Senior',
+      archived: Boolean(t.archived),
+      coach: String(t.coach || ''),
+      assistant: String(t.assistant || ''),
+      captainId: t.captainId != null && t.captainId !== '' ? Number(t.captainId) : null,
+    };
+  });
+
+  const players: Player[] = src.players.map((item, idx) => {
+    const p = (item ?? {}) as Record<string, unknown>;
+    return {
+      id: Number(p.id ?? idx + 1),
+      teamId: Number(p.teamId ?? 0),
+      first: String(p.first || ''),
+      last: String(p.last || ''),
+      nick: String(p.nick || ''),
+      number: String(p.number ?? '0'),
+      locale: String(p.locale || ''),
+      photo: String(p.photo || ''),
+      archived: Boolean(p.archived),
+      verified: Boolean(p.verified),
+      ...(p.verifiedAt ? { verifiedAt: String(p.verifiedAt) } : {}),
+    };
+  });
+
+  const games: Game[] = src.games.map((item, idx) => {
+    const g = (item ?? {}) as Record<string, unknown>;
+    const rawStatus = String(g.status || 'scheduled') as GameStatus;
+    const rawEvents = Array.isArray(g.events) ? g.events : [];
+
+    const events: GameEvent[] = rawEvents.map((evItem, evIdx) => {
+      const ev = (evItem ?? {}) as Record<string, unknown>;
+      return {
+        id: Number(ev.id ?? evIdx + 1),
+        period: Number(ev.period ?? 1),
+        clock: Number(ev.clock ?? 0),
+        teamId: ev.teamId != null ? Number(ev.teamId) : null,
+        playerId: ev.playerId != null ? Number(ev.playerId) : null,
+        type: String(ev.type || ''),
+        ...(ev.outId !== undefined ? { outId: ev.outId != null ? Number(ev.outId) : null } : {}),
+        ...(ev.pts !== undefined ? { pts: Number(ev.pts) } : {}),
+        ...(ev.secs !== undefined ? { secs: Number(ev.secs) } : {}),
+        ...(ev.foulType !== undefined ? { foulType: ev.foulType as GameEvent['foulType'] } : {}),
+        ...(ev.teamFoul !== undefined ? { teamFoul: Boolean(ev.teamFoul) } : {}),
+        ...(ev.staff !== undefined ? { staff: ev.staff as GameEvent['staff'] } : {}),
+      };
+    });
+
+    return {
+      id: Number(g.id ?? idx + 1),
+      season: String(g.season || new Date().getFullYear()),
+      date: String(g.date || ''),
+      time: String(g.time || ''),
+      no: Number(g.no ?? idx + 1),
+      competition: String(g.competition || ''),
+      place: String(g.place || ''),
+      home: Number(g.home ?? 0),
+      away: Number(g.away ?? 0),
+      status: VALID_STATUSES.has(rawStatus) ? rawStatus : 'scheduled',
+      runningTime: Boolean(g.runningTime),
+      rtLast2: Boolean(g.rtLast2),
+      lineupPeriod: Number(g.lineupPeriod ?? 0),
+      isDefault: Boolean(g.isDefault),
+      events,
+      adj: g.adj && typeof g.adj === 'object' ? (g.adj as Record<number, number>) : {},
+      active: g.active && typeof g.active === 'object' ? (g.active as Record<number, number[]>) : {},
+      played: Array.isArray(g.played) ? g.played.map(Number) : [],
+    };
+  });
+
+  const rawLive = (src.live && typeof src.live === 'object' ? src.live : {}) as Partial<LiveState>;
+  const periodLen = Number(rawLive.periodLen || 600000);
+  const live: LiveState = {
+    gameId: rawLive.gameId != null ? Number(rawLive.gameId) : null,
+    period: Number(rawLive.period || 1),
+    clock: Number(rawLive.clock ?? periodLen),
+    periodLen,
+    running: false,
+    shot: Number(rawLive.shot ?? 24000),
+    shotOn: rawLive.shotOn !== undefined ? Boolean(rawLive.shotOn) : true,
+    shotHold: Boolean(rawLive.shotHold),
+    shotViol: Boolean(rawLive.shotViol),
+    arrow: rawLive.arrow != null ? Number(rawLive.arrow) : null,
+    timeouts: rawLive.timeouts && typeof rawLive.timeouts === 'object' ? rawLive.timeouts : {},
+    names: rawLive.names && typeof rawLive.names === 'object' ? rawLive.names : {},
+    toKind: rawLive.toKind === 'timeout' || rawLive.toKind === 'break' ? rawLive.toKind : null,
+    toTeam: rawLive.toTeam != null ? Number(rawLive.toTeam) : null,
+    toLeft: Number(rawLive.toLeft || 0),
+    toSuspended: Boolean(rawLive.toSuspended),
+    swap: Boolean(rawLive.swap),
+    buzzOn: false,
+    buzzLeft: 0,
+    buzzKind: null,
+    timeoutSecs: Number(rawLive.timeoutSecs || 60),
+  };
+
+  const rawCustom = (src.custom && typeof src.custom === 'object' ? src.custom : {}) as Partial<CustomState>;
+  const customPeriodLen = Number(rawCustom.periodLen || 600000);
+  const custom: CustomState = {
+    a: {
+      name: String(rawCustom.a?.name || 'TEAM A'),
+      full: String(rawCustom.a?.full || ''),
+      color: String(rawCustom.a?.color || '#3b82f6'),
+      score: Number(rawCustom.a?.score || 0),
+      fouls: Number(rawCustom.a?.fouls || 0),
+      timeouts: Number(rawCustom.a?.timeouts ?? 2),
+    },
+    b: {
+      name: String(rawCustom.b?.name || 'TEAM B'),
+      full: String(rawCustom.b?.full || ''),
+      color: String(rawCustom.b?.color || '#ef4444'),
+      score: Number(rawCustom.b?.score || 0),
+      fouls: Number(rawCustom.b?.fouls || 0),
+      timeouts: Number(rawCustom.b?.timeouts ?? 2),
+    },
+    period: Number(rawCustom.period || 1),
+    clock: Number(rawCustom.clock ?? customPeriodLen),
+    periodLen: customPeriodLen,
+    running: false,
+    shot: Number(rawCustom.shot ?? 24000),
+    shotOn: rawCustom.shotOn !== undefined ? Boolean(rawCustom.shotOn) : true,
+    shotHold: Boolean(rawCustom.shotHold),
+    arrow: rawCustom.arrow === 'a' || rawCustom.arrow === 'b' ? rawCustom.arrow : null,
+    swap: Boolean(rawCustom.swap),
+    toKind: rawCustom.toKind === 'timeout' || rawCustom.toKind === 'break' ? rawCustom.toKind : null,
+    toTeam: rawCustom.toTeam === 'a' || rawCustom.toTeam === 'b' ? rawCustom.toTeam : null,
+    toLeft: Number(rawCustom.toLeft || 0),
+    toSuspended: Boolean(rawCustom.toSuspended),
+    buzzOn: false,
+    buzzLeft: 0,
+    buzzKind: null,
+    timeoutSecs: Number(rawCustom.timeoutSecs || 30),
+  };
+
+  return { teams, players, games, live, custom };
+}
+
+export async function restoreDatabaseBackup(
+  currentDb: FullDbPayload | null,
+  patch: (change: PatchChange) => Promise<FullDbPayload>,
+  rawData: unknown,
+  onProgress?: ProgressCallback,
+): Promise<FullDbPayload> {
+  const payload = normalizeBackupPayload(rawData);
+
+  const teamBatches = chunkArray(payload.teams, 10);
+  const playerBatches = chunkArray(payload.players, 25);
+  const gameBatches = chunkArray(payload.games, 5);
+
+  const nextGameIds = new Set(payload.games.map((g) => g.id));
+  const nextPlayerIds = new Set(payload.players.map((p) => p.id));
+  const nextTeamIds = new Set(payload.teams.map((t) => t.id));
+
+  const staleGames = currentDb ? currentDb.games.filter((g) => !nextGameIds.has(g.id)) : [];
+  const stalePlayers = currentDb ? currentDb.players.filter((p) => !nextPlayerIds.has(p.id)) : [];
+  const staleTeams = currentDb ? currentDb.teams.filter((t) => !nextTeamIds.has(t.id)) : [];
+
+  const totalSteps =
+    payload.teams.length +
+    payload.players.length +
+    staleGames.length +
+    stalePlayers.length +
+    staleTeams.length +
+    teamBatches.length +
+    playerBatches.length +
+    gameBatches.length +
+    1;
+
+  let completedSteps = 0;
+  const advance = (label: string) => {
+    completedSteps++;
+    if (!onProgress) return;
+    const pct = totalSteps > 0 ? Math.min(99, Math.round((completedSteps / totalSteps) * 100)) : 50;
+    onProgress({ percent: pct, label });
+  };
+
+  onProgress?.({ percent: 2, label: 'Preparing backup data…' });
+
+  // 1. Extract embedded base64 images back into uploaded files so patch payloads stay small
+  const preparedTeams: Team[] = [];
+  for (let i = 0; i < payload.teams.length; i++) {
+    const t = payload.teams[i];
+    const photo = await uploadDataUrlIfNeeded(t.photo, '/api/upload/team-logos', `team-${t.id}`);
+    preparedTeams.push({ ...t, photo });
+    advance(`Uploading team logos (${i + 1}/${payload.teams.length})…`);
+  }
+
+  const preparedPlayers: Player[] = [];
+  for (let i = 0; i < payload.players.length; i++) {
+    const p = payload.players[i];
+    const photo = await uploadDataUrlIfNeeded(p.photo, '/api/upload/solo-photos', `player-${p.id}`);
+    preparedPlayers.push({ ...p, photo });
+    advance(`Uploading player photos (${i + 1}/${payload.players.length})…`);
+  }
+
+  // 2. Remove records not present in the restored backup
+  for (const g of staleGames) {
+    await patch({ delGame: g.id });
+    advance('Cleaning up removed games…');
+  }
+  for (const p of stalePlayers) {
+    await patch({ delPlayer: p.id });
+    advance('Cleaning up removed players…');
+  }
+  for (const t of staleTeams) {
+    await patch({ delTeam: t.id });
+    advance('Cleaning up removed teams…');
+  }
+
+  // 3. Batch-upsert teams, players, games, and live/custom states
+  const preparedTeamBatches = chunkArray(preparedTeams, 10);
+  for (let i = 0; i < preparedTeamBatches.length; i++) {
+    await patch({ teams: preparedTeamBatches[i] });
+    advance(`Restoring teams (batch ${i + 1}/${preparedTeamBatches.length})…`);
+  }
+
+  const preparedPlayerBatches = chunkArray(preparedPlayers, 25);
+  for (let i = 0; i < preparedPlayerBatches.length; i++) {
+    await patch({ players: preparedPlayerBatches[i] });
+    advance(`Restoring players (batch ${i + 1}/${preparedPlayerBatches.length})…`);
+  }
+
+  for (let i = 0; i < gameBatches.length; i++) {
+    await patch({ games: gameBatches[i] });
+    advance(`Restoring games (batch ${i + 1}/${gameBatches.length})…`);
+  }
+
+  const finalState = await patch({
+    live: payload.live,
+    custom: payload.custom,
+    log: `Restored backup (${preparedTeams.length} teams, ${preparedPlayers.length} players, ${payload.games.length} games)`,
+  });
+
+  onProgress?.({ percent: 100, label: 'Restore complete' });
+  return finalState;
 }
 
 // --- Record & Stat Helpers ---
@@ -195,7 +577,7 @@ export function exportGamesCsv(db: FullDbPayload) {
     return total;
   };
   const techFouls = (g: Game, t: number) =>
-    g.events.filter((e) => e.type === 'foul' && e.teamId === t && (e.foulType === 'T' || e.foulType === 'technical')).length;
+    g.events.filter((e) => e.type === 'foul' && e.teamId === t && e.foulType === 'technical').length;
   const used = (g: Game, t: number) =>
     new Set(
       [...(g.played || []), ...g.events.map((e) => e.playerId).filter((id): id is number => id != null)].filter(

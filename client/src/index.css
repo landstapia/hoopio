@@ -24,3 +24,8 @@ input,
 textarea {
   color-scheme: dark;
 }
+
+html.operator-mode header,
+html.operator-mode nav {
+  display: none !important;
+}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ModalShell } from '../shared/ModalShell';
+import { ModalShell } from '../../../shared/ModalShell';
 
 export function TimeoutPickerModal({
   teamName,
@@ -25,12 +25,16 @@ export function TimeoutPickerModal({
   };
 
   return (
-    <ModalShell maxWidth="max-w-[540px]" onClose={onClose}>
-      <h3 className="mb-3 pr-10 text-lg font-bold text-[#eef2fb]">
-        Timeout · <span style={{ color: teamColorHex }}>{teamName}</span>{' '}
-        <small className="block text-xs font-normal text-[#8c9bc4]">{timeoutsLeft} left · choose the length</small>
-      </h3>
-
+    <ModalShell
+      maxWidth="max-w-[540px]"
+      title={
+        <>
+          Timeout · <span style={{ color: teamColorHex }}>{teamName}</span>
+        </>
+      }
+      subtitle={`${timeoutsLeft} left · choose the length`}
+      onClose={onClose}
+    >
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"

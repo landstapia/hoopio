@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Archive, Edit3, Plus, RotateCcw, Shield, Trash2, Upload, Users } from 'lucide-react';
-import { ModalShell } from '../components/shared/ModalShell';
+import { PageOptionsMenu } from '../components/PageOptionsMenu';
+import { ModalShell } from '../shared/ModalShell';
 import { useDb } from '../context/DbContext';
+import {
+  exportTeamsCsv,
+  openAllTeamsRosters,
+  openTeamProfile,
+  openTeamRoster,
+} from '../lib/export';
 import { ab, byNumber, colRaw, ink, nm, teamColor } from '../lib/format';
 import type { Team, TeamCategory } from '../types';
 
@@ -37,6 +44,8 @@ export function TeamsPage() {
   const [captainId, setCaptainId] = useState<number | null>(null);
   const [photo, setPhoto] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (!db) {
     return <div className="p-4 text-sm text-[#8c9bc4]">Loading teams…</div>;
@@ -53,6 +62,7 @@ export function TeamsPage() {
     setAssistant('');
     setCaptainId(null);
     setPhoto('');
+    setFormError(null);
   };
 
   const openEditTeam = (team: Team) => {
@@ -66,6 +76,7 @@ export function TeamsPage() {
     setAssistant(team.assistant || '');
     setCaptainId(team.captainId ?? null);
     setPhoto(team.photo || '');
+    setFormError(null);
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,10 +84,11 @@ export function TeamsPage() {
     if (!file) return;
     try {
       setUploading(true);
+      setFormError(null);
       const url = await uploadImageFile(file);
       setPhoto(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Logo upload failed');
+      setFormError(err instanceof Error ? err.message : 'Logo upload failed');
     } finally {
       setUploading(false);
     }
@@ -85,14 +97,19 @@ export function TeamsPage() {
   const handleSaveTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTeam) return;
+    setFormError(null);
+
     const cleanName = name.trim();
-    if (!cleanName) return alert('Enter a team name');
+    if (!cleanName) {
+      setFormError('Enter a team name.');
+      return;
+    }
 
     const cleanAbbr = (abbr.trim() || cleanName.slice(0, 3)).toUpperCase().slice(0, 5);
     const isNew = editingTeam === 'new';
 
-    const teamObj: Team = {
-      id: isNew ? Date.now() : editingTeam.id,
+    const teamPayload: Partial<Team> & { id?: number } = {
+      ...(isNew ? {} : { id: editingTeam.id }),
       name: cleanName,
       abbr: cleanAbbr,
       alias: alias.trim(),
@@ -105,21 +122,28 @@ export function TeamsPage() {
       archived: isNew ? false : editingTeam.archived,
     };
 
-    const nextTeams = isNew
-      ? [...db.teams, teamObj]
-      : db.teams.map((t) => (t.id === teamObj.id ? teamObj : t));
+    setSaving(true);
+    try {
+      await patch({
+        teams: [teamPayload],
+        log: `${isNew ? 'Created' : 'Updated'} team: ${cleanName} (${cleanAbbr})`,
+      });
 
-    await patch({
-      teams: nextTeams,
-      log: `${isNew ? 'Created' : 'Updated'} team: ${teamObj.name} (${teamObj.abbr})`,
-    });
-    setEditingTeam(null);
+      if (catFilter !== 'all' && catFilter !== category) {
+        setCatFilter(category);
+      }
+      setEditingTeam(null);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save team.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleArchive = async (team: Team) => {
     const nextArchived = !team.archived;
     await patch({
-      teams: db.teams.map((t) => (t.id === team.id ? { ...t, archived: nextArchived } : t)),
+      teams: [{ id: team.id, archived: nextArchived }],
       log: `${nextArchived ? 'Archived' : 'Restored'} team: ${team.name}`,
     });
   };
@@ -164,20 +188,31 @@ export function TeamsPage() {
   return (
     <>
       {editingTeam && (
-        <ModalShell maxWidth="max-w-[560px]" onClose={() => setEditingTeam(null)}>
+        <ModalShell
+          maxWidth="max-w-[560px]"
+          onClose={() => {
+            if (!saving) setEditingTeam(null);
+          }}
+        >
           <h3 className="mb-3 pr-10 text-lg font-bold text-[#eef2fb]">
             {editingTeam === 'new' ? 'Create New Team' : `Edit Team · ${editingTeam.name}`}
           </h3>
 
           <form onSubmit={handleSaveTeam} className="space-y-3">
+            {formError && (
+              <div className="rounded-xl border border-red-800 bg-red-900/50 px-3 py-2 text-xs font-bold text-red-200">
+                {formError}
+              </div>
+            )}
+
             {/* Logo preview + upload */}
             <div className="flex items-center gap-3 rounded-xl border border-[#1a2d6b] bg-[#071233] p-3">
               {photo ? (
-                <img src={photo} alt="" className="h-14 w-14 rounded-full object-cover ring-2 ring-[#3a4a8f]" />
+                <img src={photo} alt="" className="h-16 w-16 rounded-full object-cover ring-2 ring-[#3a4a8f]" />
               ) : (
                 <div
                   style={{ backgroundColor: color, color: ink(color) }}
-                  className="flex h-14 w-14 items-center justify-center rounded-full text-lg font-extrabold"
+                  className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-extrabold"
                 >
                   {(abbr || name || 'TM').slice(0, 3).toUpperCase()}
                 </div>
@@ -304,17 +339,18 @@ export function TeamsPage() {
             <div className="flex justify-end gap-2 border-t border-[#1a2d6b] pt-3">
               <button
                 type="button"
+                disabled={saving}
                 onClick={() => setEditingTeam(null)}
-                className="rounded-xl bg-[#2a3f87] px-4 py-2 text-sm font-bold text-white hover:bg-[#354fa8]"
+                className="rounded-xl bg-[#2a3f87] px-4 py-2 text-sm font-bold text-white hover:bg-[#354fa8] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={uploading}
+                disabled={uploading || saving}
                 className="rounded-xl bg-[#15803d] px-5 py-2 text-sm font-bold text-white hover:bg-[#166534] disabled:opacity-40"
               >
-                Save Team
+                {saving ? 'Saving…' : 'Save Team'}
               </button>
             </div>
           </form>
@@ -371,6 +407,13 @@ export function TeamsPage() {
             >
               <Plus className="h-4 w-4" /> New Team
             </button>
+
+            <PageOptionsMenu
+              items={[
+                { label: 'Generate CSV', onClick: () => exportTeamsCsv(db) },
+                { label: 'Official Rosters (All Teams)', onClick: () => openAllTeamsRosters(db) },
+              ]}
+            />
           </div>
         </div>
 
@@ -384,9 +427,15 @@ export function TeamsPage() {
             {filteredTeams.map((t) => {
               const c = teamColor(t);
               const rawC = colRaw(t, t.id);
-              const roster = db.players
-                .filter((p) => p.teamId === t.id && !p.archived)
+              const allTeamPlayers = db.players.filter((p) => p.teamId === t.id);
+              const roster = allTeamPlayers
+                .filter((p) => !p.archived)
                 .sort((a, b) => byNumber(a.number, b.number));
+              const archivedCount = allTeamPlayers.length - roster.length;
+              const captain =
+                t.captainId != null
+                  ? allTeamPlayers.find((p) => p.id === t.captainId)
+                  : undefined;
 
               return (
                 <div
@@ -398,13 +447,17 @@ export function TeamsPage() {
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2.5">
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex min-w-0 items-center gap-3.5">
                         {t.photo ? (
-                          <img src={t.photo} alt="" className="h-12 w-12 rounded-full object-cover" />
+                          <img
+                            src={t.photo}
+                            alt={`${t.name} logo`}
+                            className="h-20 w-20 shrink-0 rounded-full object-cover ring-2 ring-[#3a4a8f]"
+                          />
                         ) : (
                           <div
                             style={{ backgroundColor: rawC, color: ink(rawC) }}
-                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-extrabold"
+                            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-xl font-extrabold ring-2 ring-[#3a4a8f]"
                           >
                             {ab(t)}
                           </div>
@@ -413,7 +466,7 @@ export function TeamsPage() {
                           <h3 style={{ color: c }} className="truncate text-lg font-extrabold leading-tight">
                             {t.name}
                           </h3>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[#8c9bc4]">
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[#8c9bc4]">
                             <span className="rounded bg-[#16224d] px-1.5 py-0.5 font-bold text-[#c7d2fe]">
                               {ab(t)}
                             </span>
@@ -423,30 +476,79 @@ export function TeamsPage() {
                         </div>
                       </div>
 
-                      {t.archived && (
-                        <span className="rounded-full bg-[#7f1d1d] px-2 py-0.5 text-[10px] font-extrabold text-white">
-                          ARCHIVED
-                        </span>
-                      )}
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {t.archived && (
+                          <span className="rounded-full bg-[#7f1d1d] px-2 py-0.5 text-[10px] font-extrabold text-white">
+                            ARCHIVED
+                          </span>
+                        )}
+                        <PageOptionsMenu
+                          items={[
+                            { label: 'Team Profile', onClick: () => openTeamProfile(db, t.id) },
+                            { label: 'Official Roster', onClick: () => openTeamRoster(db, t.id) },
+                          ]}
+                        />
+                      </div>
                     </div>
 
-                    {/* Coaching staff */}
-                    <div className="mt-3 space-y-0.5 text-xs text-[#c7d2fe]">
-                      <div>
-                        <span className="text-[#8c9bc4]">Coach:</span> {t.coach || '—'}
-                      </div>
-                      {t.assistant && (
-                        <div>
-                          <span className="text-[#8c9bc4]">Asst. Coach:</span> {t.assistant}
+                    {/* Coach, Asst. Coach, Captain & Total Players */}
+                    <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl border border-[#1a2d6b] bg-[#071233] px-3 py-2.5 text-xs">
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#8c9bc4]">
+                          Coach
                         </div>
-                      )}
+                        <div className="truncate font-semibold text-[#eef2fb]">
+                          {t.coach || '—'}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#8c9bc4]">
+                          Asst. Coach
+                        </div>
+                        <div className="truncate font-semibold text-[#eef2fb]">
+                          {t.assistant || '—'}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#8c9bc4]">
+                          Captain
+                        </div>
+                        <div className="flex items-center gap-1 truncate font-semibold text-[#eef2fb]">
+                          {captain ? (
+                            <>
+                              <Shield className="h-3 w-3 shrink-0 text-[#f2a501]" aria-hidden="true" />
+                              <span className="truncate">
+                                #{captain.number} {nm(captain)}
+                              </span>
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#8c9bc4]">
+                          Total Players
+                        </div>
+                        <div className="truncate font-extrabold text-[#eef2fb]">
+                          {roster.length}
+                          {archivedCount > 0 && (
+                            <span className="ml-1 font-normal text-[#8c9bc4]">
+                              ({allTeamPlayers.length} total)
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Roster preview */}
-                    <div className="mt-3 rounded-xl border border-[#1a2d6b] bg-[#071233] p-2.5">
+                    <div className="mt-2.5 rounded-xl border border-[#1a2d6b] bg-[#071233] p-2.5">
                       <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold text-[#8c9bc4]">
                         <span className="flex items-center gap-1">
-                          <Users className="h-3.5 w-3.5" /> Roster ({roster.length})
+                          <Users className="h-3.5 w-3.5" /> Active Lineup Pool ({roster.length})
                         </span>
                         <Link to={`/players?team=${t.id}`} className="text-[#f2a501] hover:underline">
                           Manage →

@@ -14,6 +14,7 @@ import { PlayersPage } from './pages/PlayersPage';
 import { RulesPage } from './pages/RulesPage';
 import { ScoreboardPage } from './pages/ScoreboardPage';
 import { TeamsPage } from './pages/TeamsPage';
+import { FibaManualPage } from './pages/FibaManualPage';
 
 export default function App() {
   return (
@@ -26,8 +27,6 @@ export default function App() {
             <Route path="/playerboard" element={<PlayerboardPage />} />
             <Route path="/custom-scoreboard" element={<CustomScoreboardPage />} />
             <Route path="/officiating" element={<OfficiatingPage />} />
-            <Route path="/scoresheet" element={<Navigate to="/officiating" replace />} />
-            <Route path="/controls" element={<Navigate to="/officiating" replace />} />
             <Route path="/custom-controls" element={<CustomControlsPage />} />
             <Route path="/games" element={<GamesPage />} />
             <Route path="/games/:id/statistics" element={<GameStatsPage />} />
@@ -36,6 +35,7 @@ export default function App() {
             <Route path="/players" element={<PlayersPage />} />
             <Route path="/rules" element={<RulesPage />} />
             <Route path="/log" element={<LogPage />} />
+            <Route path="/manual" element={<FibaManualPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>

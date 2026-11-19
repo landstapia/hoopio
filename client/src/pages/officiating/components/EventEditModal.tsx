@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useDb } from '../../context/DbContext';
-import { byNumber, fc, nm, parseClock, per } from '../../lib/format';
-import type { Game, GameEvent } from '../../types';
-import { ModalShell } from '../shared/ModalShell';
+import { useDb } from '../../../context/DbContext';
+import { byNumber, fc, nm, parseClock, per } from '../../../lib/format';
+import type { Game, GameEvent } from '../../../types';
+import { ModalShell } from '../../../shared/ModalShell';
 
 const EV_TYPES: Array<[string, string]> = [
   ['pts1', '+1'],
@@ -74,13 +74,13 @@ export function EventEditModal({
   };
 
   return (
-    <ModalShell maxWidth="max-w-[430px]" dismissable={false} onClose={onClose}>
-      <h3 className="text-xl font-bold text-[#eef2fb]">
-        Edit event{' '}
-        <small className="block text-xs font-normal text-[#8c9bc4]">
-          {event.teamId != null ? getTeam(event.teamId)?.name : ''} · saved when you press Save
-        </small>
-      </h3>
+    <ModalShell
+      maxWidth="max-w-[430px]"
+      dismissable={false}
+      title="Edit event"
+      subtitle={`${event.teamId != null ? `${getTeam(event.teamId)?.name} · ` : ''}Saved when you press Save`}
+      onClose={onClose}
+    >
 
       <div className="my-4 grid grid-cols-2 gap-2.5">
         <label className="flex flex-col gap-1 text-xs text-[#b4c0ea]">

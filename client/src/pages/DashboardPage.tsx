@@ -4,6 +4,7 @@ import { Play, Radio, Trophy, Users } from 'lucide-react';
 import { useDb } from '../context/DbContext';
 import { ab, BRAND, fc, nm, per, teamColor } from '../lib/format';
 import { KS, sc, type StatKey, tot } from '../lib/stats';
+import type { TeamCategory } from '../types';
 
 const LEADER_LABELS: Array<[StatKey, string]> = [
   ['pts', 'Points'],
@@ -12,6 +13,8 @@ const LEADER_LABELS: Array<[StatKey, string]> = [
   ['stl', 'Steals'],
   ['blk', 'Blocks'],
 ];
+
+const STANDING_CATEGORIES: Array<'all' | TeamCategory> = ['all', 'Senior', 'Junior', 'Free'];
 
 export function DashboardPage() {
   const { db, liveGame, getTeam } = useDb();
@@ -23,6 +26,7 @@ export function DashboardPage() {
   }, [db]);
 
   const [seasonFilter, setSeasonFilter] = useState<string>('');
+  const [catFilter, setCatFilter] = useState<'all' | TeamCategory>('all');
   const activeSeason = seasonFilter || seasons[0] || '';
 
   const standings = useMemo(() => {
@@ -66,9 +70,16 @@ export function DashboardPage() {
     }
 
     return rows
-      .filter((r) => r.gp > 0 || seasonGames.length === 0)
-      .sort((a, b) => b.w - a.w || a.l - b.l || b.pf - b.pa - (a.pf - a.pa));
-  }, [db, activeSeason]);
+      .filter((r) => {
+        if (catFilter !== 'all' && (r.team.category || 'Senior') !== catFilter) return false;
+        return r.gp > 0 || seasonGames.length === 0;
+      })
+      .sort((a, b) => {
+        const aPct = a.gp > 0 ? a.w / a.gp : -1;
+        const bPct = b.gp > 0 ? b.w / b.gp : -1;
+        return bPct - aPct || b.w - a.w || a.l - b.l || b.pf - b.pa - (a.pf - a.pa);
+      });
+  }, [db, activeSeason, catFilter]);
 
   const leaders = useMemo(() => {
     if (!db) return {} as Record<StatKey, Array<{ playerId: number; value: number; avg: string; gp: number }>>;
@@ -241,17 +252,41 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Standings */}
         <section className="rounded-2xl border border-[#1a2d6b] bg-[#0a1530] p-4">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 text-base font-extrabold text-white">
               <Trophy className="h-4 w-4 text-[#f2a501]" /> Standings
             </h2>
-            <Link to="/games" className="text-xs font-bold text-[#f2a501] hover:underline">
-              Full schedule →
-            </Link>
+
+            <div className="flex items-center gap-2">
+              <div className="flex overflow-hidden rounded-lg border border-[#3a4a8f]">
+                {STANDING_CATEGORIES.map((cVal) => (
+                  <button
+                    key={cVal}
+                    type="button"
+                    onClick={() => setCatFilter(cVal)}
+                    className={`px-2.5 py-1 text-[11px] font-extrabold capitalize transition ${
+                      catFilter === cVal
+                        ? 'bg-[#2a3f87] text-white'
+                        : 'bg-[#0f1a44] text-[#c7d2fe] hover:bg-[#192b6e]'
+                    }`}
+                  >
+                    {cVal}
+                  </button>
+                ))}
+              </div>
+
+              <Link to="/games" className="text-xs font-bold text-[#f2a501] hover:underline">
+                Full schedule →
+              </Link>
+            </div>
           </div>
 
           {standings.length === 0 ? (
-            <p className="text-sm text-[#8c9bc4]">No completed games yet.</p>
+            <p className="text-sm text-[#8c9bc4]">
+              {catFilter === 'all'
+                ? 'No completed games yet.'
+                : `No standings for ${catFilter} teams yet.`}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-xs">
@@ -259,15 +294,33 @@ export function DashboardPage() {
                   <tr className="bg-[#16224d] text-[10px] uppercase text-[#8c9bc4]">
                     <th className="px-2 py-2 text-left">#</th>
                     <th className="px-2 py-2 text-left">Team</th>
-                    <th className="px-2 py-2 text-center">GP</th>
-                    <th className="px-2 py-2 text-center">W</th>
-                    <th className="px-2 py-2 text-center">L</th>
-                    <th className="px-2 py-2 text-center">DIFF</th>
+                    <th className="px-2 py-2 text-center" title="Games Played">
+                      GP
+                    </th>
+                    <th className="px-2 py-2 text-center" title="Wins">
+                      W
+                    </th>
+                    <th className="px-2 py-2 text-center" title="Losses">
+                      L
+                    </th>
+                    <th className="px-2 py-2 text-center" title="Winning Percentage">
+                      PCT
+                    </th>
+                    <th className="px-2 py-2 text-center" title="Points For">
+                      PF
+                    </th>
+                    <th className="px-2 py-2 text-center" title="Points Allowed">
+                      PA
+                    </th>
+                    <th className="px-2 py-2 text-center" title="Point Differential">
+                      DIFF
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {standings.map((r, idx) => {
                     const diff = r.pf - r.pa;
+                    const pct = r.gp > 0 ? (r.w / r.gp).toFixed(3).replace(/^0/, '') : '—';
                     return (
                       <tr key={r.team.id} className="border-b border-[#1a2d6b]/70 hover:bg-white/[0.03]">
                         <td className="px-2 py-2 font-bold text-[#8c9bc4]">{idx + 1}</td>
@@ -277,6 +330,11 @@ export function DashboardPage() {
                         <td className="px-2 py-2 text-center">{r.gp}</td>
                         <td className="px-2 py-2 text-center font-bold text-[#4ade80]">{r.w}</td>
                         <td className="px-2 py-2 text-center font-bold text-[#f87171]">{r.l}</td>
+                        <td className="px-2 py-2 text-center font-mono font-bold text-[#f2a501]">
+                          {pct}
+                        </td>
+                        <td className="px-2 py-2 text-center text-[#eef2fb]">{r.pf}</td>
+                        <td className="px-2 py-2 text-center text-[#c7d2fe]">{r.pa}</td>
                         <td className="px-2 py-2 text-center font-semibold">
                           {diff > 0 ? `+${diff}` : diff}
                         </td>

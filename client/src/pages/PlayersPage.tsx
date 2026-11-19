@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Archive, BadgeCheck, Edit3, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import { PageOptionsMenu } from '../components/PageOptionsMenu';
-import { ModalShell } from '../components/shared/ModalShell';
+import { ModalShell } from '../shared/ModalShell';
 import { useDb } from '../context/DbContext';
 import { exportPlayersCsv } from '../lib/export';
-import { ab, byNumber, colRaw, ink, nm, teamColor } from '../lib/format';
+import { ab, byNumber, colRaw, ink, teamColor } from '../lib/format';
 import { KS, type StatKey, tot } from '../lib/stats';
 import type { Player } from '../types';
 
-type PlayerSortKey = 'number' | 'name' | 'team' | 'gp' | StatKey;
+type PlayerSortKey = 'number' | 'name' | 'team' | 'gp' | 'totalPts' | StatKey;
 
 async function uploadImageFile(file: File): Promise<string> {
   const formData = new FormData();
@@ -21,19 +21,28 @@ async function uploadImageFile(file: File): Promise<string> {
   return data.url || data.path!;
 }
 
+function fullName(p: Pick<Player, 'first' | 'last' | 'nick' | 'number'>): string {
+  const first = p.first?.trim();
+  const nick = p.nick?.trim() ? `"${p.nick.trim()}"` : '';
+  const last = p.last?.trim();
+  const combined = [first, nick, last].filter(Boolean).join(' ');
+  return combined || (p.number ? `#${p.number}` : 'Player');
+}
+
 export function PlayersPage() {
   const { db, getTeam, patch } = useDb();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const initialTeamParam = searchParams.get('team');
+  const parsedTeamParam = initialTeamParam ? Number(initialTeamParam) : NaN;
   const [teamFilter, setTeamFilter] = useState<number | ''>(
-    initialTeamParam ? Number(initialTeamParam) : '',
+    Number.isFinite(parsedTeamParam) && parsedTeamParam > 0 ? parsedTeamParam : '',
   );
   const [seasonFilter, setSeasonFilter] = useState<string>('');
   const [search, setSearch] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const [sort, setSort] = useState<{ key: PlayerSortKey; dir: 1 | -1 }>({
-    key: 'pts',
+    key: 'totalPts',
     dir: -1,
   });
 
@@ -48,14 +57,16 @@ export function PlayersPage() {
   const [verified, setVerified] = useState<boolean>(false);
   const [photo, setPhoto] = useState<string>('');
   const [uploading, setUploading] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const pTarget = editingPlayer === 'new' ? null : editingPlayer;
 
   const seasons = useMemo(() => {
     if (!db) return [];
     const set = new Set(db.games.map((g) => g.season).filter(Boolean));
     return [...set].sort().reverse();
   }, [db]);
-
-  const activeSeason = seasonFilter || seasons[0] || '';
 
   if (!db) {
     return <div className="p-4 text-sm text-[#8c9bc4]">Loading players…</div>;
@@ -74,8 +85,12 @@ export function PlayersPage() {
   };
 
   const openNewPlayer = () => {
-    const defaultTeam =
-      typeof teamFilter === 'number' ? teamFilter : activeTeams[0]?.id ?? db.teams[0]?.id ?? 0;
+    const validFilterTeam =
+      typeof teamFilter === 'number' && db.teams.some((t) => t.id === teamFilter)
+        ? teamFilter
+        : null;
+    const defaultTeam = validFilterTeam ?? activeTeams[0]?.id ?? db.teams[0]?.id ?? 0;
+
     setEditingPlayer('new');
     setTeamId(defaultTeam);
     setNumber('');
@@ -85,6 +100,9 @@ export function PlayersPage() {
     setLocale('');
     setVerified(false);
     setPhoto('');
+    setFormError(
+      db.teams.length === 0 ? 'Create a team on the Teams page before adding players.' : null,
+    );
   };
 
   const openEditPlayer = (p: Player) => {
@@ -97,6 +115,7 @@ export function PlayersPage() {
     setLocale(p.locale || '');
     setVerified(!!p.verified);
     setPhoto(p.photo || '');
+    setFormError(null);
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,10 +123,11 @@ export function PlayersPage() {
     if (!file) return;
     try {
       setUploading(true);
+      setFormError(null);
       const url = await uploadImageFile(file);
       setPhoto(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Photo upload failed');
+      setFormError(err instanceof Error ? err.message : 'Photo upload failed');
     } finally {
       setUploading(false);
     }
@@ -116,63 +136,114 @@ export function PlayersPage() {
   const handleSavePlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPlayer) return;
-    if (!teamId) return alert('Select a team');
-    if (!first.trim() && !last.trim()) return alert('Enter a first or last name');
-    const cleanNum = number.trim();
-    if (!cleanNum) return alert('Enter a jersey number');
+    setFormError(null);
 
-    const isNew = editingPlayer === 'new';
-    const playerObj: Player = {
-      id: isNew ? Date.now() : editingPlayer.id,
-      teamId,
+    const resolvedTeamId = teamId || activeTeams[0]?.id || db.teams[0]?.id || 0;
+    if (!resolvedTeamId) {
+      setFormError('Select a team first.');
+      return;
+    }
+    if (!first.trim() && !last.trim()) {
+      setFormError('Enter a first or last name.');
+      return;
+    }
+    const cleanNum = number.trim();
+    if (!cleanNum) {
+      setFormError('Enter a jersey number.');
+      return;
+    }
+
+    const duplicateJersey = db.players.find(
+      (p) =>
+        p.teamId === resolvedTeamId &&
+        !p.archived &&
+        p.number.trim().toLowerCase() === cleanNum.toLowerCase() &&
+        (!pTarget || p.id !== pTarget.id),
+    );
+    if (duplicateJersey) {
+      setFormError(
+        `Jersey #${cleanNum} is already assigned to ${fullName(duplicateJersey)} on this team.`,
+      );
+      return;
+    }
+
+    const playerPayload: Partial<Player> & { id?: number } = {
+      ...(pTarget ? { id: pTarget.id } : {}),
+      teamId: resolvedTeamId,
       number: cleanNum,
       first: first.trim(),
       last: last.trim(),
       nick: nick.trim(),
       locale: locale.trim(),
       verified,
+      ...(verified
+        ? {
+            verifiedAt: pTarget?.verifiedAt || new Date().toISOString(),
+          }
+        : {}),
       photo,
-      archived: isNew ? false : editingPlayer.archived,
+      archived: pTarget ? pTarget.archived : false,
     };
 
-    const nextPlayers = isNew
-      ? [...db.players, playerObj]
-      : db.players.map((p) => (p.id === playerObj.id ? playerObj : p));
-
-    await patch({
-      players: nextPlayers,
-      log: `${isNew ? 'Added' : 'Updated'} player: #${playerObj.number} ${nm(playerObj)} (${ab(
-        getTeam(teamId),
-      )})`,
+    const displayName = fullName({
+      first: first.trim(),
+      last: last.trim(),
+      nick: nick.trim(),
+      number: cleanNum,
     });
-    setEditingPlayer(null);
+
+    setSaving(true);
+    try {
+      await patch({
+        players: [playerPayload],
+        log: `${pTarget ? 'Updated' : 'Added'} player: #${cleanNum} ${displayName} (${ab(
+          getTeam(resolvedTeamId),
+        )})`,
+      });
+
+      if (teamFilter !== '' && teamFilter !== resolvedTeamId) {
+        handleTeamFilterChange(resolvedTeamId);
+      }
+      setEditingPlayer(null);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save player.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleArchive = async (p: Player) => {
     const nextArchived = !p.archived;
     await patch({
-      players: db.players.map((pl) => (pl.id === p.id ? { ...pl, archived: nextArchived } : pl)),
-      log: `${nextArchived ? 'Archived' : 'Restored'} player: #${p.number} ${nm(p)}`,
+      players: [{ id: p.id, archived: nextArchived }],
+      log: `${nextArchived ? 'Archived' : 'Restored'} player: #${p.number} ${fullName(p)}`,
     });
   };
 
   const deletePlayer = async (p: Player) => {
-    const hasEvents = db.games.some((g) => g.events.some((ev) => ev.playerId === p.id || ev.outId === p.id));
+    const hasEvents = db.games.some((g) =>
+      g.events.some((ev) => ev.playerId === p.id || ev.outId === p.id),
+    );
     if (hasEvents) {
-      return alert('This player has recorded game events. Archive them instead so box scores remain accurate.');
+      return alert(
+        'This player has recorded game events. Archive them instead so box scores remain accurate.',
+      );
     }
-    if (!confirm(`Delete player #${p.number} ${nm(p)}?`)) return;
+    if (!confirm(`Delete player #${p.number} ${fullName(p)}?`)) return;
 
     await patch({
       delPlayer: p.id,
-      log: `Deleted player: #${p.number} ${nm(p)}`,
+      log: `Deleted player: #${p.number} ${fullName(p)}`,
     });
   };
 
   const toggleSort = (key: PlayerSortKey) => {
     setSort((prev) => {
       if (prev.key !== key) {
-        return { key, dir: key === 'gp' || KS.includes(key as StatKey) ? -1 : 1 };
+        return {
+          key,
+          dir: key === 'gp' || key === 'totalPts' || KS.includes(key as StatKey) ? -1 : 1,
+        };
       }
       return { key, dir: prev.dir === 1 ? -1 : 1 };
     });
@@ -192,15 +263,17 @@ export function PlayersPage() {
       return true;
     })
     .map((p) => {
-      const stats = tot(p.id, db.games, activeSeason || undefined);
-      return { player: p, team: getTeam(p.teamId), stats };
+      const stats = tot(p.id, db.games, seasonFilter || undefined);
+      const allGamesStats = seasonFilter ? tot(p.id, db.games) : stats;
+      return { player: p, team: getTeam(p.teamId), stats, totalPtsAllGames: allGamesStats.pts };
     })
     .sort((a, b) => {
       let cmp = 0;
       if (sort.key === 'number') cmp = byNumber(a.player.number, b.player.number);
-      else if (sort.key === 'name') cmp = nm(a.player).localeCompare(nm(b.player));
+      else if (sort.key === 'name') cmp = fullName(a.player).localeCompare(fullName(b.player));
       else if (sort.key === 'team') cmp = (a.team?.name || '').localeCompare(b.team?.name || '');
       else if (sort.key === 'gp') cmp = a.stats.gp - b.stats.gp;
+      else if (sort.key === 'totalPts') cmp = a.totalPtsAllGames - b.totalPtsAllGames;
       else {
         const aAvg = a.stats.gp ? a.stats[sort.key] / a.stats.gp : 0;
         const bAvg = b.stats.gp ? b.stats[sort.key] / b.stats.gp : 0;
@@ -209,40 +282,93 @@ export function PlayersPage() {
       return cmp * sort.dir;
     });
 
+  const modalTeam = getTeam(teamId || activeTeams[0]?.id || db.teams[0]?.id || 0);
+  const modalTeamColor = modalTeam ? colRaw(modalTeam, modalTeam.id) : '#3b82f6';
+
   return (
     <>
       {editingPlayer && (
-        <ModalShell maxWidth="max-w-[540px]" onClose={() => setEditingPlayer(null)}>
+        <ModalShell
+          maxWidth="max-w-[540px]"
+          onClose={() => {
+            if (!saving) setEditingPlayer(null);
+          }}
+        >
           <h3 className="mb-3 pr-10 text-lg font-bold text-[#eef2fb]">
-            {editingPlayer === 'new' ? 'Add Player' : `Edit Player · #${editingPlayer.number} ${nm(editingPlayer)}`}
+            {pTarget
+              ? `Edit Player · #${pTarget.number} ${fullName(pTarget)}`
+              : 'Add Player'}
           </h3>
 
           <form onSubmit={handleSavePlayer} className="space-y-3">
-            {/* Photo upload */}
-            <div className="flex items-center gap-3 rounded-xl border border-[#1a2d6b] bg-[#071233] p-3">
-              {photo ? (
-                <img src={photo} alt="" className="h-14 w-14 rounded-full object-cover ring-2 ring-[#3a4a8f]" />
-              ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#16224d] text-sm font-extrabold text-[#8c9bc4]">
-                  #{number || '0'}
+            {formError && (
+              <div className="rounded-xl border border-red-800 bg-red-900/50 px-3 py-2 text-xs font-bold text-red-200">
+                {formError}
+              </div>
+            )}
+
+            {/* Larger Player Photo + Upload Controls + Small Team Logo on Right */}
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#1a2d6b] bg-[#071233] p-3">
+              <div className="flex min-w-0 items-center gap-3.5">
+                {photo ? (
+                  <img
+                    src={photo}
+                    alt={pTarget ? fullName(pTarget) : 'Player photo'}
+                    className="h-24 w-24 shrink-0 rounded-full object-cover ring-2 ring-[#3a4a8f]"
+                  />
+                ) : (
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-[#16224d] text-xl font-extrabold text-[#8c9bc4] ring-2 ring-[#3a4a8f]">
+                    #{number || '0'}
+                  </div>
+                )}
+
+                <div className="flex flex-col items-start gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#2a3f87] px-3.5 py-2 text-xs font-extrabold text-white hover:bg-[#354fa8]">
+                    <Upload className="h-3.5 w-3.5" />
+                    {uploading ? 'Uploading…' : 'Upload Photo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {photo && (
+                    <button
+                      type="button"
+                      onClick={() => setPhoto('')}
+                      className="rounded-xl px-3 py-1.5 text-xs font-bold text-[#fca5a5] hover:bg-white/5"
+                    >
+                      Remove Photo
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {modalTeam && (
+                <div
+                  title={modalTeam.name}
+                  className="flex shrink-0 flex-col items-center gap-1 rounded-xl border border-[#1a2d6b] bg-[#0a1530] px-2.5 py-2"
+                >
+                  {modalTeam.photo ? (
+                    <img
+                      src={modalTeam.photo}
+                      alt={modalTeam.name}
+                      className="h-10 w-10 rounded-full object-cover ring-1 ring-[#3a4a8f]"
+                    />
+                  ) : (
+                    <div
+                      style={{ backgroundColor: modalTeamColor, color: ink(modalTeamColor) }}
+                      className="flex h-10 w-10 items-center justify-center rounded-full text-xs font-extrabold ring-1 ring-[#3a4a8f]"
+                    >
+                      {ab(modalTeam)}
+                    </div>
+                  )}
+                  <span className="max-w-[64px] truncate text-[10px] font-extrabold text-[#c7d2fe]">
+                    {ab(modalTeam)}
+                  </span>
                 </div>
               )}
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#2a3f87] px-3.5 py-2 text-xs font-extrabold text-white hover:bg-[#354fa8]">
-                  <Upload className="h-3.5 w-3.5" />
-                  {uploading ? 'Uploading…' : 'Upload Photo'}
-                  <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                </label>
-                {photo && (
-                  <button
-                    type="button"
-                    onClick={() => setPhoto('')}
-                    className="rounded-xl px-3 py-2 text-xs font-bold text-[#fca5a5] hover:bg-white/5"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
             </div>
 
             <div className="grid grid-cols-[1fr_110px] gap-2.5">
@@ -253,6 +379,7 @@ export function PlayersPage() {
                   onChange={(e) => setTeamId(Number(e.target.value))}
                   className="h-10 rounded-lg border border-[#3a4a8f] bg-[#0f2160] px-2.5 text-sm text-white"
                 >
+                  {db.teams.length === 0 && <option value={0}>No teams available</option>}
                   {db.teams.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name} ({ab(t)})
@@ -280,7 +407,7 @@ export function PlayersPage() {
                 <input
                   value={first}
                   onChange={(e) => setFirst(e.target.value)}
-                  placeholder="Juan"
+                  placeholder="CJ"
                   className="h-10 rounded-lg border border-[#3a4a8f] bg-[#0f1a44] px-3 text-sm text-white"
                 />
               </label>
@@ -290,7 +417,7 @@ export function PlayersPage() {
                 <input
                   value={last}
                   onChange={(e) => setLast(e.target.value)}
-                  placeholder="Dela Cruz"
+                  placeholder="Poblete"
                   className="h-10 rounded-lg border border-[#3a4a8f] bg-[#0f1a44] px-3 text-sm text-white"
                 />
               </label>
@@ -298,11 +425,11 @@ export function PlayersPage() {
 
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <label className="flex flex-col gap-1 text-xs font-bold text-[#c7d2fe]">
-                Nickname
+                Alias / Nickname
                 <input
                   value={nick}
                   onChange={(e) => setNick(e.target.value)}
-                  placeholder="Optional"
+                  placeholder="e.g. CJ"
                   className="h-10 rounded-lg border border-[#3a4a8f] bg-[#0f1a44] px-3 text-sm text-white"
                 />
               </label>
@@ -331,30 +458,31 @@ export function PlayersPage() {
             <div className="flex justify-end gap-2 border-t border-[#1a2d6b] pt-3">
               <button
                 type="button"
+                disabled={saving}
                 onClick={() => setEditingPlayer(null)}
-                className="rounded-xl bg-[#2a3f87] px-4 py-2 text-sm font-bold text-white hover:bg-[#354fa8]"
+                className="rounded-xl bg-[#2a3f87] px-4 py-2 text-sm font-bold text-white hover:bg-[#354fa8] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={uploading}
+                disabled={uploading || saving || db.teams.length === 0}
                 className="rounded-xl bg-[#15803d] px-5 py-2 text-sm font-bold text-white hover:bg-[#166534] disabled:opacity-40"
               >
-                Save Player
+                {saving ? 'Saving…' : 'Save Player'}
               </button>
             </div>
           </form>
         </ModalShell>
       )}
 
-      <div className="mx-auto flex max-w-[1400px] flex-col gap-4">
+      <div className="mx-auto flex max-w-[1400px] flex-col gap-3">
         {/* Header & Filters */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-[#1a2d6b] bg-[#0a1530] p-4">
           <div>
             <h1 className="text-xl font-extrabold text-white">Players</h1>
             <p className="text-xs text-[#8c9bc4]">
-              Rosters, jersey numbers, and per-game season averages ({rows.length} shown)
+              Rosters, jersey numbers, total points, and per-game averages ({rows.length} shown)
             </p>
           </div>
 
@@ -381,10 +509,11 @@ export function PlayersPage() {
 
             {seasons.length > 0 && (
               <select
-                value={activeSeason}
+                value={seasonFilter}
                 onChange={(e) => setSeasonFilter(e.target.value)}
                 className="h-9 rounded-xl border border-[#3a4a8f] bg-[#0f2160] px-3 text-xs font-bold text-white"
               >
+                <option value="">All Seasons</option>
                 {seasons.map((s) => (
                   <option key={s} value={s}>
                     Season {s}
@@ -415,6 +544,38 @@ export function PlayersPage() {
               items={[{ label: 'Generate CSV', onClick: () => exportPlayersCsv(db) }]}
             />
           </div>
+        </div>
+
+        {/* Abbreviation Legend */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-[#1a2d6b] bg-[#0a1530] px-4 py-2.5 text-[11px] text-[#8c9bc4]">
+          <span className="font-extrabold uppercase tracking-wider text-[#c7d2fe]">Legend:</span>
+          <span>
+            <strong className="text-white">GP</strong> Games Played
+          </span>
+          <span>
+            <strong className="text-[#f2a501]">PTS</strong> Total Points (All Games)
+          </span>
+          <span>
+            <strong className="text-white">PPG</strong> Points / Game
+          </span>
+          <span>
+            <strong className="text-white">RPG</strong> Rebounds / Game
+          </span>
+          <span>
+            <strong className="text-white">APG</strong> Assists / Game
+          </span>
+          <span>
+            <strong className="text-white">SPG</strong> Steals / Game
+          </span>
+          <span>
+            <strong className="text-white">BPG</strong> Blocks / Game
+          </span>
+          <span>
+            <strong className="text-white">TOPG</strong> Turnovers / Game
+          </span>
+          <span>
+            <strong className="text-white">FPG</strong> Fouls / Game
+          </span>
         </div>
 
         {/* Players Table */}
@@ -452,6 +613,13 @@ export function PlayersPage() {
                     >
                       GP{sortArrow('gp')}
                     </th>
+                    <th
+                      onClick={() => toggleSort('totalPts')}
+                      title="Total points across all games"
+                      className="cursor-pointer px-2 py-2.5 text-center text-[#f2a501] hover:text-white"
+                    >
+                      PTS{sortArrow('totalPts')}
+                    </th>
                     {KS.map((k) => (
                       <th
                         key={k}
@@ -466,10 +634,11 @@ export function PlayersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ player: p, team, stats }) => {
+                  {rows.map(({ player: p, team, stats, totalPtsAllGames }) => {
                     const c = teamColor(team);
                     const rawC = team ? colRaw(team, team.id) : '#3b82f6';
                     const avg = (val: number) => (stats.gp ? (val / stats.gp).toFixed(1) : '—');
+                    const cleanLocale = p.locale?.trim();
 
                     return (
                       <tr
@@ -489,13 +658,25 @@ export function PlayersPage() {
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2.5">
                             {p.photo && (
-                              <img src={p.photo} alt="" className="h-8 w-8 rounded-full object-cover" />
+                              <img
+                                src={p.photo}
+                                alt={fullName(p)}
+                                className="h-8 w-8 rounded-full object-cover"
+                              />
                             )}
                             <div>
-                              <div className="flex items-center gap-1 font-bold text-white">
-                                <span>{nm(p)}</span>
+                              <div className="flex items-center gap-1.5 font-bold text-white">
+                                <span>{fullName(p)}</span>
                                 {p.verified && (
-                                  <BadgeCheck className="h-3.5 w-3.5 text-[#38bdf8]" aria-label="Verified" />
+                                  <span
+                                    title="Verified player"
+                                    className="inline-flex shrink-0 items-center"
+                                  >
+                                    <BadgeCheck
+                                      className="h-4 w-4 text-[#38bdf8]"
+                                      aria-label="Verified"
+                                    />
+                                  </span>
                                 )}
                                 {p.archived && (
                                   <span className="ml-1 rounded bg-[#7f1d1d] px-1.5 py-0.5 text-[9px] font-extrabold text-white">
@@ -503,10 +684,8 @@ export function PlayersPage() {
                                   </span>
                                 )}
                               </div>
-                              {(p.nick || p.locale) && (
-                                <div className="text-[11px] text-[#8c9bc4]">
-                                  {[p.nick ? `"${p.nick}"` : '', p.locale].filter(Boolean).join(' · ')}
-                                </div>
+                              {cleanLocale && (
+                                <div className="text-[11px] text-[#8c9bc4]">{cleanLocale}</div>
                               )}
                             </div>
                           </div>
@@ -515,11 +694,14 @@ export function PlayersPage() {
                           {team?.name || '—'}
                         </td>
                         <td className="px-2 py-2 text-center font-semibold">{stats.gp}</td>
+                        <td className="px-2 py-2 text-center font-extrabold text-[#f2a501]">
+                          {totalPtsAllGames}
+                        </td>
                         {KS.map((k) => (
                           <td
                             key={k}
                             className={`px-2 py-2 text-center ${
-                              k === 'pts' ? 'font-extrabold text-[#f2a501]' : 'text-[#eef2fb]'
+                              k === 'pts' ? 'font-bold text-white' : 'text-[#eef2fb]'
                             }`}
                           >
                             {avg(stats[k])}

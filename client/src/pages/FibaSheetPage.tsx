@@ -1031,7 +1031,7 @@ export function FibaSheetPage() {
             {sc(game, game.away)}
           </span>
 
-          {game.status === 'finished' && sc(game, game.home) !== sc(game, game.away) && (
+          {game.status === 'final' && sc(game, game.home) !== sc(game, game.away) && (
             <span
               style={pos(coords.summary.winnerX, coords.summary.winnerY)}
               className="absolute -translate-y-1/2 text-[12px] font-extrabold uppercase text-slate-950 sm:text-[13px]"

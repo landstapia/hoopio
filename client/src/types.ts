@@ -1,6 +1,13 @@
 export type TeamCategory = 'Senior' | 'Junior' | 'Free';
 export type GameStatus = 'scheduled' | 'live' | 'final';
-export type FoulType = 'personal' | 'technical' | 'flagrant';
+export type FoulType =
+  | 'personal'
+  | 'technical'
+  | 'technical_c1'
+  | 'technical_c2'
+  | 'disruptive'
+  | 'flagrant'
+  | 'disqualifying';
 
 export interface Team {
   id: number;
@@ -42,7 +49,7 @@ export interface GameEvent {
   secs?: number;
   foulType?: FoulType;
   teamFoul?: boolean;
-  staff?: 'coach' | 'assistant';
+  staff?: 'coach' | 'assistant' | 'bench';
 }
 
 export interface Game {
